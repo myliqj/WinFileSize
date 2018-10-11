@@ -1,6 +1,7 @@
 package com.myliqj.dir;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -10,13 +11,25 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.PrintStream;
 import java.io.PrintWriter;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.Charset;
+import java.text.DateFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
+import java.util.TimeZone;
+import java.util.prefs.BackingStoreException;
+import java.util.prefs.Preferences;
 
 import com.myliqj.dir.bean.DirDTInfo;
 import com.myliqj.dir.bean.DirInfo;
@@ -24,6 +37,20 @@ import com.myliqj.dir.bean.FileInfo;
 
 public class GetDirInfo {
 	
+	
+	public static String getSystemDateTimeFormat(){
+		String dateFmt = "yyyy-MM-dd";
+		String timeFmt = "HH:mm";
+		try {
+			dateFmt = WinRegistry.readString(WinRegistry.HKEY_CURRENT_USER, "Control Panel\\International","sShortDate") ;
+			timeFmt = WinRegistry.readString(WinRegistry.HKEY_CURRENT_USER, "Control Panel\\International","sShortTime") ;//sTimeFormat
+		} catch (Exception e) { 
+			dateFmt = "yyyy-MM-dd";
+			timeFmt = "HH:mm";
+			e.printStackTrace();
+		}
+		return dateFmt + " " + timeFmt;
+	}
 	
 	public static Map getDirInfo(String path,Long topSize) throws Exception{
 		String cmd = "cmd /c dir /-c /t:w /s \"C:\\Users\\Administrator\\AppData\\Roaming\\youku\\config\"";
@@ -252,8 +279,146 @@ public class GetDirInfo {
 //        } 
        
 	}
+	
+	public static void mainrr(String[] args) {
+		
+		Map<String, String> envs = System.getenv();		
+		for (String name: envs.keySet()) {			
+			System.out.println(name + " ---> " + envs.get(name));		
+		}				
+		System.out.println(System.getenv("JAVA_HOME"));
+		
+		
+		
+		Properties sysProps = System.getProperties(); // 获得属性集合		
+		System.out.println(System.getProperty("os.name")); // 直接获取指定的系统属性		
+		System.out.println(sysProps); // 在属性集合中获取指定属性				for (Object key: sysProps.keySet()) { // 程序中遍历			String name = (String)key;			System.out.println(sysProps.getProperty(name));		}
+		Set<String> s=sysProps.stringPropertyNames();
+        for (String x:s) {
+            System.out.println(x+" :"+sysProps.get(x));
+        }
+        
+        Locale currentLocale = Locale.getDefault();
+        System.out.println(currentLocale);
+        System.out.println((new Date()).toLocaleString());
+        DateFormat formatter = DateFormat.getDateTimeInstance();
+        //formatter.format(date)
+        System.out.println(Locale.getDefault(Locale.Category.FORMAT));
+        
+        Locale loc = currentLocale;
+        Calendar calendar = Calendar.getInstance(TimeZone.getDefault(), loc);
+        Locale locale = Locale.getDefault(Locale.Category.FORMAT);
+        
+        SimpleDateFormat sdf = new SimpleDateFormat();
+        System.out.println(sdf.toPattern());
+        
+        DateFormat df = DateFormat.getDateTimeInstance(2, 2);
+        System.out.println("current-date:" + df.format(new Date()));
+        
+        SimpleDateFormat aa = new SimpleDateFormat();
+//        System.out.println(Preferences.userRoot()); 
+//        Preferences re = Preferences.userRoot();
+//        try {
+//			System.out.println(re.nodeExists("HKEY_CURRENT_USER\\Control Panel\\International"));
+//		} catch (BackingStoreException e1) {
+//			// TODO Auto-generated catch block
+//			e1.printStackTrace();
+//		}
+        
+        String dateFmt = null;
+        String timeFmt = null;
+			try {
+				dateFmt = WinRegistry.readString(WinRegistry.HKEY_CURRENT_USER, "Control Panel\\International","sShortDate") ;
+				timeFmt = WinRegistry.readString(WinRegistry.HKEY_CURRENT_USER, "Control Panel\\International","sShortTime") ;
+//				Map<String,String> map = WinRegistry.readStringValues(WinRegistry.HKEY_CURRENT_USER, "Control Panel\\International");
+//				System.out.println("sShortDate=" + map.get("sShortDate"));
+//				System.out.println("sShortTime=" + map.get("sShortTime"));
+			} catch (IllegalArgumentException | IllegalAccessException
+					| InvocationTargetException e1) {
+				e1.printStackTrace();
+			}
+		System.out.println("DateTime:" + dateFmt + " "+ timeFmt);
+        
+        //AbstractPreferences wp = WindowsPreferencesFactory.
+        // WinRegistry.java
+        // HKEY_CURRENT_USER\Control Panel\International
+        
+        
+		String st=getSystemDateTimeFormat();
+		System.out.println("curr-sys-set:" + st);
+		java.text.SimpleDateFormat inputFormat = new java.text.SimpleDateFormat(st);
+		// 2010-03-25-00.00.00
+		java.text.SimpleDateFormat outputFormat = new java.text.SimpleDateFormat("yyyy-MM-dd-HH.mm.ss");
+		
+//        SimpleDateFormat sdf_out = (SimpleDateFormat) DateFormat.getDateTimeInstance();
+//        SimpleDateFormat sdf_in = sdf_out;
+        System.out.println();
+        String out = null;
+		try {
+			out = outputFormat.format(inputFormat.parse("2017-11-12 04:32"));
+		} catch (ParseException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+        System.out.println("===" + out);
+        
+        //System.out.println(LocaleProviderAdapter.getResourceBundleBased().getDateFormatProvider().toString());
+        
+//        System.out.println(LocaleProviderAdapter.getResourceBundleBased().getLocaleResources(locale)              
+//        .getDateTimePattern(3, 3, calendar));
+	}
 	public static void main(String[] args) throws Exception{
-		GetDirInfo.getDirInfo("C:\\Windows\\temp\\",1*1024L);
+//		GetDirInfo.getDirInfo("C:\\Windows\\temp\\",1*1024L);
+//		String a="2018-09-02  下午 10:32";
+//		System.out.println(a.length());
+		
+		//yyyy-MM-dd a h:mm
+//		java.text.SimpleDateFormat f = new java.text.SimpleDateFormat("yyyy-MM-dd  a h:mm");
+//		String d = "2018-10-11  下午 11:54";
+////		System.out.println(f.format(new Date()));
+//		System.out.println(f.parse(d));
+//		
+//		if (1==1){return ;};
+//		
+//		String path = "d:\\java_run\\";
+		String path = "C:\\Windows\\temp\\";
+
+		long topsize = 50L*1024*1024; // 50mb 为基础
+		topsize = 500*1024L;
+		
+		Map map = null;	
+		//PrintStream cacheStream = null;
+		//PrintStream oldStream = System.out;
+		try{ 
+//			ByteArrayOutputStream baos = new ByteArrayOutputStream();
+//			cacheStream = new PrintStream(baos);
+//			System.setOut(cacheStream);
+			
+			map = GetDirInfo.getDirInfo(path,topsize);
+
+			//System.out.println("\n"+baos.toString()); 
+		
+			if (map==null) return;
+			
+			List<DirInfo> dirInfo = (List<DirInfo>)map.get("dir");
+			
+			List<FileInfo> fis = (List<FileInfo>) map.get("file_topsize");
+			if (fis!=null){
+				// 返回值 已排序，倒序
+				// 显示 
+				StringBuilder sb = new StringBuilder();
+				for (FileInfo fi : fis) {
+					String len = StringHelper.readableFileSize(fi.getFile_size());
+					sb.append(fi.getFile_time()).append(" ");
+					sb.append((len.length()<10)?StringHelper.repeat(" ", 10-len.length()):"")
+					  .append(len).append(" ").append(fi.getFile_name()).append("\n");
+				}
+				System.out.println(sb.toString()); 
+			}
+		}finally{
+			//System.setOut(oldStream);
+		}
+		
 	}
 	public static void maina(String[] args) throws Exception{
 		//Map<String, PropertyDescriptor> m=BeanUtil.getFieldNamePropertyDescriptorMap(DirInfo.class);
@@ -376,10 +541,25 @@ public class GetDirInfo {
 			pw_dir=new PrintWriter(new OutputStreamWriter(new FileOutputStream(delFileNameOfDir), writeCharset)); 
 			pw_dir_dt=new PrintWriter(new OutputStreamWriter(new FileOutputStream(delFileNameOfDirDt), writeCharset)); 
 		}	
-		 		
-		java.text.SimpleDateFormat inputFormat = new java.text.SimpleDateFormat("yyyy-MM-dd  HH:mm");
+		 	
+		String dtFormat = getSystemDateTimeFormat();
+		boolean timeHastt = dtFormat.indexOf("tt")>0;
+		if (timeHastt) dtFormat = dtFormat.replace("tt", " a");
+		System.out.println("current datetime format:" + dtFormat);
+		java.text.SimpleDateFormat inputFormat = new java.text.SimpleDateFormat(dtFormat);
 		// 2010-03-25-00.00.00
 		java.text.SimpleDateFormat outputFormat = new java.text.SimpleDateFormat("yyyy-MM-dd-HH.mm.ss");
+		
+		char c_date_sep = '-';
+		if(dtFormat!=null && dtFormat.indexOf(c_date_sep)==-1){
+			for (int i = 0; i < dtFormat.length(); i++) {
+				char c = dtFormat.charAt(i);
+				if (!(c==' ' || ( c>='0' || c<='9'))) {
+					// 找到第一个非空格和数字，判断为日期分隔符
+					c_date_sep = c;
+				}
+			}
+		}
 		 
 		String curPath = ""; long curDirNo = 1; String dir_dt_out = "";
 		long p_curDirNo = 1; long p_dirSize = 0;  // 上一次序号与大小(从文件汇总)
@@ -452,9 +632,16 @@ public class GetDirInfo {
 					// 当前是目录中的目录，不处理
 					skipSubDir ++;
 					p_DirSubCount ++; 
-					try{ 
-						dir_dt_out = outputFormat.format(inputFormat.parse(line.substring(0,17)));
-						
+					try{ 						
+						if (!timeHastt){
+							dir_dt_out = outputFormat.format(inputFormat.parse(line.substring(0,17)));
+						}else{
+							// 日期时间有包括上午/下午
+							dir_dt_out = outputFormat.format(inputFormat.parse(line.substring(0,20)));
+							//String s_dt = line.substring(0,17+5);
+							//dir_dt_out = outputFormat.format(inputFormat.parse(
+							//		s_dt.replace("上午 ", "am").replace("下午", "pm").substring(0,20) ));							
+						}
 						int start = line.indexOf("<DIR>") + 5;
 						while (start<len && (line.charAt(start) ==' ')) start++;
 						file = line.substring(start);
@@ -478,11 +665,17 @@ public class GetDirInfo {
 					continue;
 				} else {
 					// 时间有超前的，需要处理一下，例子 27672-06-01-09.04.00
-					
-					dt = line.substring(0,17);
+					// 2018-05-06  下午 02:58    <DIR>          Program Files (x86)
+					// 2015-07-07  下午 01:41               304 SSSE32.ini
+					dt = line.substring(0,17);	
+					if (timeHastt){
+						// 日期时间有包括上午/下午
+						dt = line.substring(0,20);
+						//dt = dt.replace("上午", "am").replace("下午", "pm").substring(0,20);							
+					}
 					try{ 
 						String dt_y ="";
-						int i = dt.indexOf('-');
+						int i = dt.indexOf(c_date_sep);
 						if (i>0){
 							dt_y = dt.substring(0,i);
 							if (Integer.valueOf(dt_y)>2050){
@@ -499,6 +692,7 @@ public class GetDirInfo {
 					
 					// 找第一个数字
 					int i = 17;
+					if (timeHastt) i+=5;
 					while (i<len && !(line.charAt(i)>='0' && line.charAt(i)<='9')) i++;
 					int start=i;
 					// 找下一个空格
