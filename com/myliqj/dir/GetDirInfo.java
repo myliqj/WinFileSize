@@ -1,7 +1,6 @@
 package com.myliqj.dir;
 
 import java.io.BufferedReader;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -22,21 +21,23 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.TimeZone;
-import java.util.prefs.BackingStoreException;
-import java.util.prefs.Preferences;
+
+import testWin.TestMain;
 
 import com.myliqj.dir.bean.DirDTInfo;
 import com.myliqj.dir.bean.DirInfo;
 import com.myliqj.dir.bean.FileInfo;
 
 public class GetDirInfo {
-	
+	public static String INPUT_DEFAULT_DATETIME = "yyyy-MM-dd HH:mm"; 
+	public static String OUTPUT_DEFAULT_DATETIME = "yyyy-MM-dd-HH.mm.ss"; 
 	
 	public static String getSystemDateTimeFormat(){
 		String dateFmt = "yyyy-MM-dd";
@@ -52,57 +53,84 @@ public class GetDirInfo {
 		return dateFmt + " " + timeFmt;
 	}
 	
-	public static Map getDirInfo(String path,Long topSize) throws Exception{
-		String cmd = "cmd /c dir /-c /t:w /s \"C:\\Users\\Administrator\\AppData\\Roaming\\youku\\config\"";
-		cmd = "cmd /c dir /-c /t:w /s D:\\java_run\\Quartz";
-		cmd = "cmd /c dir /-c /t:w /s D:\\db2tool";
-		cmd = "cmd /c dir /-c /t:w /s \"C:\\Program Files (x86)\"";
-		cmd = "cmd /c dir /-c /t:w /s \"C:\\Windows\"";
+	public static Map getDirInfo(String path,Long topSize,Map options) throws Exception{
+//		String cmd = "cmd /c dir /-c /t:w /s \"C:\\Users\\Administrator\\AppData\\Roaming\\youku\\config\"";
+//		cmd = "cmd /c dir /-c /t:w /s D:\\java_run\\Quartz";
+//		cmd = "cmd /c dir /-c /t:w /s D:\\db2tool";
+//		cmd = "cmd /c dir /-c /t:w /s \"C:\\Program Files (x86)\"";
+//		cmd = "cmd /c dir /-c /t:w /s \"C:\\Windows\"";
 		if (path==null) return null;
-		path = path.replaceAll("/", "\\");
-		if (!path.endsWith("\\")) path += "\\";
-		cmd = "cmd /c dir /-c /t:w /s \""+path+"\"";
-		System.out.println(cmd);
-		Process pro = Runtime.getRuntime().exec(cmd);
+		String cmd = null;
 		
-		boolean isDeleteTempFile = true;
-		String tempFileName=FileUtils.createTempFile("dir_temp",".txt",null);
-		System.out.println("tempFileName=" + tempFileName);
+		// 是否过虑部份文件而已 ，可以在路径上带上模糊查询，即有 * 符号。   dir /s d:\*.txt
+		boolean isPart = path.contains("*");
 		
-		PrintStream ps = new PrintStream( new FileOutputStream(tempFileName,true),true, "GBK" );		
-		StreamGobbler errorGobbler = new StreamGobbler(pro.getErrorStream(), "GBK", "ERR", ps);
-		StreamGobbler outputGobbler = new StreamGobbler(pro.getInputStream(), "GBK", "OUT", ps);		
+		File pathFile = null;
+		if (!isPart){
+			pathFile = new File(path);
+			if (!pathFile.exists()){
+				TestMain.showMessage("路径或文件["+path+"]不存在，请重新录入！");
+				return null;
+			}
+		}
 		
-		//StreamGobbler errorGobbler = new StreamGobbler(pro.getErrorStream(), "GBK", "ERR", System.err);
-		//StreamGobbler outputGobbler = new StreamGobbler(pro.getInputStream(), "GBK", "OUT", System.out);
-		long start = System.nanoTime(); //System.currentTimeMillis();
+		long start,ys;
+		String tempFileName= null;
+		File tmpFile = null;
+		boolean isDeleteTempFile = false;
 		
-		errorGobbler.start();
-		outputGobbler.start();
-		//pro.waitFor();
-		int exitVal = pro.waitFor();
-		long ys = System.nanoTime() - start;
-		ps.close();
-		
-		File tmpFile = new File(tempFileName);
-		System.out.println("使用dir命令获取目录文件信息到临时文件。 ExitValue=" + exitVal
-				+ " 用时=" + (ys/1000000)+" ms "
-				+ " 文件大小="+StringHelper.readableFileSize(tmpFile.length()) + "\n");
-		
+		if (isPart || (pathFile!=null && pathFile.isDirectory() )) {
+			path = path.replaceAll("/", "\\");
+			if (!isPart && !path.endsWith("\\")) path += "\\";
+			
+			/*
+			  dir 命令选项
+			  /a   所有文件，包括隐藏文件等
+			  /-c  在文件大小中显示千位数分隔符。这是默认值。用 /-C 来 禁用分隔符显示。
+			  /t:w 控制显示或用来分类的时间字符域。 C 创建时间,A 上次访问时间,W 上次写入的时间
+			  /s   显示指定目录和所有子目录中的文件。
+			*/
+			cmd = "cmd /c dir /a /-c /t:w /s \""+path+"\"";
+			System.out.println(cmd);
+			Process pro = Runtime.getRuntime().exec(cmd);
+			
+			isDeleteTempFile = true;
+			tempFileName=FileUtils.createTempFile("dir_temp",".txt",null);
+			System.out.println("tempFileName=" + tempFileName);
+			
+			PrintStream ps = new PrintStream( new FileOutputStream(tempFileName,true),true, "GBK" );		
+			StreamGobbler errorGobbler = new StreamGobbler(pro.getErrorStream(), "GBK", "ERR", ps);
+			StreamGobbler outputGobbler = new StreamGobbler(pro.getInputStream(), "GBK", "OUT", ps);		
+			
+			//StreamGobbler errorGobbler = new StreamGobbler(pro.getErrorStream(), "GBK", "ERR", System.err);
+			//StreamGobbler outputGobbler = new StreamGobbler(pro.getInputStream(), "GBK", "OUT", System.out);
+			start = System.nanoTime(); //System.currentTimeMillis();
+			
+			errorGobbler.start();
+			outputGobbler.start();
+			//pro.waitFor();
+			int exitVal = pro.waitFor();
+			ys = System.nanoTime() - start;
+			ps.close();
+			
+			tmpFile = new File(tempFileName);
+			System.out.println("使用dir命令获取目录文件信息到临时文件。 ExitValue=" + exitVal
+					+ " 用时=" + (ys/1000000)+" ms "
+					+ " 文件大小="+StringHelper.readableFileSize(tmpFile.length()) + "\n");
+		}else{
+			tmpFile = pathFile;
+			System.out.println("直接读取文件：" + path);
+		}
+		 
 		// output
-		
 		List<DirInfo> dirInfo = new ArrayList<DirInfo>();
 		List<DirDTInfo> dirDTInfo = null; // new ArrayList<DirDTInfo>();
 		List<FileInfo> fileInfo = null; // new ArrayList<FileInfo>(); 
 		List<FileInfo> fileInfo_TopSize = null;
 		if (topSize>0) fileInfo_TopSize = new ArrayList<FileInfo>();
-		// dirTodel(Long inFileNo,File inFile,String outDir,boolean isOnlyOutputLoad
-		//,boolean isOutputFile,int i_SkipRow
-		//,List<DirInfo> dirInfo,List<DirDTInfo> dirDTInfo
-		//,List<FileInfo> fileInfo)
-		
+
 		start = System.nanoTime();
-		dirTodel(-1L,tmpFile,null,false,false,0,dirInfo,dirDTInfo,fileInfo,topSize,fileInfo_TopSize);
+		dirTodel(-1L,tmpFile,null,false,false,0,dirInfo,dirDTInfo,fileInfo,topSize,fileInfo_TopSize,options);
 		ys = System.nanoTime() - start;		
 		if (isDeleteTempFile){
 			// remove temp file
@@ -134,7 +162,10 @@ public class GetDirInfo {
 			dir.setDir_sub_file_size( dir.getDir_file_size() ); // 先包含自己
 			
 			if (i>0){
-				String curName = dir.getDir_name().substring(dir0_len+1);
+				String curName = dir.getDir_name();
+				try {					
+					curName = dir.getDir_name().substring(dir0_len+1);
+				} catch (Exception e) {}
 				dir.setLevel( StringHelper.appearNumber(curName, "\\") );
 			}
 			
@@ -368,6 +399,22 @@ public class GetDirInfo {
 //        .getDateTimePattern(3, 3, calendar));
 	}
 	public static void main(String[] args) throws Exception{
+		if (true){
+
+			// 2018-10-21  18:13    <SYMLINKD>     md [E:\Python27]
+			// 2018-10-21  18:15    <SYMLINKD>     mj [E:\Python27]
+			String line = "<SYMLINKD> maad [E:\\Python27]";
+			int len = line.length();
+			int start = line.indexOf("<SYMLINKD>") + 10;
+			while (start<len && (line.charAt(start) ==' ')) start++; // 跳过空格
+			int end = line.indexOf('[', start+1);
+			System.out.println("start="+start + " ,end="+end);
+			String dir = line.substring(start,end).trim();
+			System.out.println(dir);
+			return;
+		}
+		
+		
 //		GetDirInfo.getDirInfo("C:\\Windows\\temp\\",1*1024L);
 //		String a="2018-09-02  下午 10:32";
 //		System.out.println(a.length());
@@ -394,7 +441,7 @@ public class GetDirInfo {
 //			cacheStream = new PrintStream(baos);
 //			System.setOut(cacheStream);
 			
-			map = GetDirInfo.getDirInfo(path,topsize);
+			map = GetDirInfo.getDirInfo(path,topsize,null);
 
 			//System.out.println("\n"+baos.toString()); 
 		
@@ -455,24 +502,17 @@ public class GetDirInfo {
         	if (file.getName().startsWith("20170924")){
         		inFileNo++;
         		System.out.println(inFileNo+","+file.getName());
-        		//if ("20170924_221712_k470p_750g_04_f_dir_all_file_info.txt".equals(file.getName())){
-        		////	dirTodel(inFileNo,file,outDir,false);
-        		//}
-        		
-        		// load from xx of del messages load.msg insert into xx NONRECOVERABLE
-        		// output-load
-        		//dirTodel(inFileNo,file,outDir,true);
-        		
         		
         	}
         }
 	}
-	public static void dirTodel(Long inFileNo,File inFile,String outDir,boolean isOnlyOutputLoad
+	public static Map dirTodel(Long inFileNo,File inFile,String outDir,boolean isOnlyOutputLoad
 			,boolean isOutputFile,int i_SkipRow
 			,List<DirInfo> dirInfo,List<DirDTInfo> dirDTInfo
 			,List<FileInfo> fileInfo
 			,Long topSize                    // 返回指定大小的文件，字节，<=0 表示不返回
 			,List<FileInfo> fileInfo_TopSize // 指定大小的文件列表
+			,Map<String,String> options
 			) throws Exception{
 		String inFileName = inFile.getName();
 		int dot = inFileName.lastIndexOf('.');
@@ -528,7 +568,7 @@ public class GetDirInfo {
 		}
 		
 		if (isOnlyOutputLoad){
-			return ;
+			return null;
 		}
 
 		String delFileNameOfFile = outDir + "imfile_" + fileName + ".del";       // 导出文件对应的 del
@@ -543,12 +583,34 @@ public class GetDirInfo {
 		}	
 		 	
 		String dtFormat = getSystemDateTimeFormat();
+		if (options!=null && StringHelper.isNotEmpty( options.get("setDateTimeFormat") )){
+			dtFormat = options.get("setDateTimeFormat");
+		}
+		int dateParseErrorCountMax = 5000; // 如果日期时间解释错误多少个则退出处理
+		if (options!=null && StringHelper.isNotEmpty( options.get("setDateParseErrorCountMax") )){ 
+			try {				
+				dateParseErrorCountMax = Integer.valueOf( options.get("setDateParseErrorCountMax") );
+			} catch (Exception e) {}
+		}
+		boolean isSkipSYMLINKD = true;
+		if (options!=null && StringHelper.isNotEmpty( options.get("setSkipSYMLINKD") )){ 
+			try {				
+				isSkipSYMLINKD = "YES".equalsIgnoreCase(options.get("setSkipSYMLINKD"));
+			} catch (Exception e) {}
+		}
+				
 		boolean timeHastt = dtFormat.indexOf("tt")>0;
 		if (timeHastt) dtFormat = dtFormat.replace("tt", " a");
 		System.out.println("current datetime format:" + dtFormat);
-		java.text.SimpleDateFormat inputFormat = new java.text.SimpleDateFormat(dtFormat);
+		java.text.SimpleDateFormat inputFormat = null;
+		try {
+			inputFormat = new java.text.SimpleDateFormat(dtFormat);
+		} catch (Exception e) {
+			e.printStackTrace();
+			inputFormat = new java.text.SimpleDateFormat(INPUT_DEFAULT_DATETIME); // 解析不正确，使用回默认值
+		} 
 		// 2010-03-25-00.00.00
-		java.text.SimpleDateFormat outputFormat = new java.text.SimpleDateFormat("yyyy-MM-dd-HH.mm.ss");
+		java.text.SimpleDateFormat outputFormat = new java.text.SimpleDateFormat(OUTPUT_DEFAULT_DATETIME);
 		
 		char c_date_sep = '-';
 		if(dtFormat!=null && dtFormat.indexOf(c_date_sep)==-1){
@@ -568,8 +630,15 @@ public class GetDirInfo {
 		String dt = ""; String dt_out = ""; 
 		String size = ""; String file=""; String ext = "";
 		int errCount = 0; int skipEmpty = 0; int skipSummary = 0; int skipSubDir = 0;
-		int skipJUNCTION = 0; int skipSYMLINK = 0;
+		int skipJUNCTION = 0; int skipSYMLINK = 0; int errDirTooLongCount = 0;
 		int rows = 0; int len =0 ; int FileCount = 0;
+		int skipSYMLINKD = 0;
+		int dateParseErrorCount = 0;
+		
+		Set<String> skipSD = null;
+		if (isSkipSYMLINKD) skipSD = new LinkedHashSet<String>(); // 跳过 <SYMLINKD> 和 <JUNCTION>
+		// <JUNCTION> 是由 mklink /j 创建的,例如 mklink /d /h /j md_j E:\Python27\
+		// <SYMLINKD> 是由 mklink /d 创建的,例如 mklink /d mj E:\Python27
 		
 		BufferedReader br = new BufferedReader( new InputStreamReader(new FileInputStream(inFile), readCharset)  );
 		String line = "";
@@ -595,7 +664,27 @@ public class GetDirInfo {
 			boolean isDir = line.endsWith("的目录");
 			if (isDir){
 				
-				if (p_curDirNo>1) // 从1开始，首次的不要保存，   ---表示整个所有，parent_dir_id=-1，其它时候 parent_dir为不正确的值，要另外经过处理才行
+				// 检查是否链接目录，如果是，则跳过不处理
+				String cur = line.substring(0, len-3).trim();
+				if (cur.charAt(cur.length()-1) !='\\'){
+					cur += "\\";
+				}
+				if (skipSYMLINKD>0 && isSkipSYMLINKD){
+					// 检查相应所有子目录，如果有则全部跳过
+					boolean isFind = false;
+					for (String str : skipSD) {
+						isFind = cur.startsWith(str); // 最后字符都有 \ ，所以应该不会只匹配一半
+						if (isFind){
+							break;
+						}
+					}
+					if (isFind){
+						continue;
+					}
+				}
+				
+				
+				if (p_curDirNo>1) {// 从1开始，首次的不要保存，   ---表示整个所有，parent_dir_id=-1，其它时候 parent_dir为不正确的值，要另外经过处理才行
 					// src_id, dir_id,p_parent_dir_id, dir_file_count, dir_file_size, dir_sub_count, dir_name 
 					if (isOutputFile) {
 						pw_dir.println(inFileNo + "," + p_curDirNo+ "," + p_parent_dir_id+ "," + p_DirFileCount +"," + p_dirSize + "," + p_DirSubCount + ",\"" + curPath.replace("\"", "\"\"") + "\"");
@@ -603,10 +692,8 @@ public class GetDirInfo {
 						// bean
 						if (dirInfo!=null) dirInfo.add(new DirInfo(inFileNo , p_curDirNo, p_parent_dir_id, p_DirFileCount, p_dirSize , p_DirSubCount , curPath ));
 					}
-				curPath = line.substring(0, len-3).trim();
-				if (curPath.charAt(curPath.length()-1) !='\\'){
-					curPath += "\\";
 				}
+				curPath = cur;
 				
 				curDirNo ++;
 				
@@ -622,11 +709,26 @@ public class GetDirInfo {
 			//if (curPath.trim().length()==0) continue;
 			
 			if (len>17){ 
-				if (line.contains("<JUNCTION>")){
-					skipJUNCTION ++;
-					continue;
-				}else if (line.contains("<SYMLINK>")){
+				if (line.contains("<SYMLINK>")){
 					skipSYMLINK ++;
+					continue;
+				}else if (line.contains("<SYMLINKD>") || line.contains("<JUNCTION>")){
+					int start = 0;
+					if (line.contains("<SYMLINKD>")){
+						skipSYMLINKD ++;
+						if (isSkipSYMLINKD) start = line.indexOf("<SYMLINKD>") + 10;
+					}else if (line.contains("<JUNCTION>")){
+						skipJUNCTION ++;
+						if (isSkipSYMLINKD) start = line.indexOf("<JUNCTION>") + 10;
+					}
+					// 2018-10-21  18:18    <JUNCTION>     md_j [E:\Python27]
+					// 2018-10-21  18:13    <SYMLINKD>     md [E:\Python27]
+					if (isSkipSYMLINKD) {
+						while (start<len && (line.charAt(start) ==' ')) start++; // 跳过空格
+						int end = line.indexOf('[', start+1);
+						String dir = line.substring(start,end).trim();
+						skipSD.add(curPath+dir+"\\");
+					}
 					continue;
 				}else if (line.contains("<DIR>")){
 					// 当前是目录中的目录，不处理
@@ -642,6 +744,7 @@ public class GetDirInfo {
 							//dir_dt_out = outputFormat.format(inputFormat.parse(
 							//		s_dt.replace("上午 ", "am").replace("下午", "pm").substring(0,20) ));							
 						}
+						
 						int start = line.indexOf("<DIR>") + 5;
 						while (start<len && (line.charAt(start) ==' ')) start++;
 						file = line.substring(start);
@@ -657,6 +760,11 @@ public class GetDirInfo {
 					}catch (Exception e) {
 						e.printStackTrace();
 						errCount ++;
+						dateParseErrorCount++;
+						if (dateParseErrorCountMax>0 && dateParseErrorCount>=dateParseErrorCountMax){
+							System.err.println("dateParseErrorCount=" + dateParseErrorCount);
+							break;
+						}
 						continue;
 					} 
 					continue;
@@ -664,6 +772,16 @@ public class GetDirInfo {
 					skipSummary ++;
 					continue;
 				} else {
+					
+					// 可能会有  : "目录名称 ..... 过长。" 的报错，处理一下。
+					if (line.startsWith("目录名称")){
+						if (line.endsWith("过长。")){
+							errDirTooLongCount++;
+							continue;
+						}
+					}
+					
+					
 					// 时间有超前的，需要处理一下，例子 27672-06-01-09.04.00
 					// 2018-05-06  下午 02:58    <DIR>          Program Files (x86)
 					// 2015-07-07  下午 01:41               304 SSSE32.ini
@@ -687,6 +805,11 @@ public class GetDirInfo {
 					}catch (Exception e) {
 						e.printStackTrace();
 						errCount ++;
+						dateParseErrorCount++;
+						if (dateParseErrorCountMax>0 && dateParseErrorCount>=dateParseErrorCountMax){
+							System.err.println("dateParseErrorCount=" + dateParseErrorCount);
+							break;
+						}
 						continue;
 					}
 					
@@ -755,8 +878,8 @@ public class GetDirInfo {
 					pw.flush();pw_dir.flush();pw_dir_dt.flush();
 				} 
 				System.out.println("Dir:" + curDirNo + " , File:" + FileCount + ",  Read-Rows:" + rows 
-						+" (err="+errCount+",empty="+skipEmpty +",summary="+skipSummary+",subdir="+ skipSubDir 
-						+ ",symlink="+skipSYMLINK +",junction="+ skipJUNCTION+ ") ... ");
+						+" (err="+errCount+",errDTL="+errDirTooLongCount+",empty="+skipEmpty +",summary="+skipSummary+",subdir="+ skipSubDir 
+						+ ",symlink="+skipSYMLINK+ ",symlinkd="+skipSYMLINKD +",junction="+ skipJUNCTION+ ") ... ");
 			} 
 		}
 		br.close();
@@ -771,220 +894,22 @@ public class GetDirInfo {
 			}
 
 		System.out.println("Dir:" + curDirNo + " , File:" + FileCount + ",  Read-Rows:" + rows 
-				+" (err="+errCount+",empty="+skipEmpty +",summary="+skipSummary+",subdir="+ skipSubDir 
-				+ ",symlink="+skipSYMLINK +",junction="+ skipJUNCTION+ ") ... end");
+				+" (err="+errCount+",errDTL="+errDirTooLongCount+",empty="+skipEmpty +",summary="+skipSummary+",subdir="+ skipSubDir 
+				+ ",symlink="+skipSYMLINK + ",symlinkd="+skipSYMLINKD +",junction="+ skipJUNCTION+ ") ... end");
+		
+		if (isSkipSYMLINKD && skipSYMLINKD+skipJUNCTION>0) {
+			System.out.println(" <SYMLINKD>或<JUNCTION> 目录:");
+			for (String str : skipSD) {
+				System.out.println("    " + str);
+			}
+		}
+		System.out.println();
 		
 		if (isOutputFile){
 			pw.flush(); pw.close();
 			pw_dir.flush(); pw_dir.close();
 			pw_dir_dt.flush(); pw_dir_dt.close();
 		}
+		return null;
 	}
-	/**
-	 * @param args
-	 * @throws Exception 
-	 */
-	public static void main2(String[] args) throws Exception {
-		// TODO Auto-generated method stub
-		 
-		String inFile = "20170924_221040_k470p_750g_02_d_dir_all_file_info.txt";
-		String filename = "h:\\" + inFile ;
-		String inFileNo = "1";
-		
-		String outfile = "h:/"+ "import_" + inFile;
-		String outdir = "h:/"+ "import_dir_" + inFile;
-		String outdir_dt = "h:/"+ "import_dir_dt_" + inFile;
-		
-		
-		System.out.println("start ... file=" + inFileNo + "  " + inFile );
-		
-		
-		//Vector<String> f = FileUtils.getFileLines(filename);
-		
-		FileWriter fw = new FileWriter(outfile,false);
-		PrintWriter pw=new PrintWriter(fw); 
-
-		FileWriter fw_dir = new FileWriter(outdir,false);
-		PrintWriter pw_dir=new PrintWriter(fw_dir); 
-		
-		FileWriter fw_dir_dt = new FileWriter(outdir_dt,false);
-		PrintWriter pw_dir_dt=new PrintWriter(outdir_dt); 
-		
-		java.text.SimpleDateFormat inputFormat = new java.text.SimpleDateFormat("yyyy-MM-dd  HH:mm");
-		// 2010-03-25-00.00.00
-		java.text.SimpleDateFormat outputFormat = new java.text.SimpleDateFormat("yyyy-MM-dd-HH.mm.ss");
-		 
-		String curPath = ""; int curDirNo = 0; String dir_dt_out = "";
-		int p_curDirNo = 0; long p_dirSize = 0;  // 上一次序号与大小(从文件汇总)
-		int p_parent_dir_id = -1;
-		int p_DirFileCount = 0; int p_DirSubCount = 0;
-		String dt = ""; String dt_out = ""; 
-		String size = ""; String file=""; String ext = "";
-		int errCount = 0; int skipEmpty = 0; int skipSummary = 0; int skipSubDir = 0;
-		int skipJUNCTION = 0; int skipSYMLINK = 0;
-		int rows = 0; int len =0 ; int FileCount = 0;
-		
-		BufferedReader br = new BufferedReader(new FileReader(new File(filename)));
-		String line = "";
-		while ((line = br.readLine()) != null){ 
-				 
-		//for (String line :f){
-			rows ++;  
-			//if (rows>200) break;  // test
-			if (rows<6) {
-				// 跳过最前面的5行
-				skipSummary ++;
-				continue;
-			}
-			
-			len = line.length();
-			if (line.trim().length()==0) {
-				skipEmpty ++;
-				continue;
-			}
-//					if (line.startsWith("out_file=")){
-//						skipSammay ++;
-//						continue;
-//					}
-//					if (line.startsWith("start ----")){
-//						skipSammay ++;
-//						continue;
-//					}
-			if (line.startsWith("end ----")){
-				skipSummary ++;
-				continue;
-			}
-			
-			boolean isDir = line.endsWith("的目录");
-			if (isDir){
-				
-				if (p_curDirNo>0)
-					pw_dir.println(inFileNo + "," + p_curDirNo+ "," +p_parent_dir_id+ "," + p_DirFileCount +"," + p_dirSize + "," + p_DirSubCount + ",\"" + curPath.replace("\"", "\"\"") + "\"");
-	    		    // src_id, dir_id, dir_file_count, dir_file_size, dir_sub_count, dir_name 
-				curDirNo ++;
-				curPath = line.substring(0, len-3).trim();
-				if (curPath.charAt(curPath.length()-1) !='\\'){
-					curPath += "\\";
-				}
-				
-				
-				p_dirSize = 0;
-				p_DirFileCount = 0;
-				p_DirSubCount = 0;
-				p_parent_dir_id = p_curDirNo;
-				p_curDirNo = curDirNo;
-				//System.out.println("dir: " + curPath);
-				//pw_dir.println(inFileNo + "," + curDirNo + ",\"" + curPath.replace("\"", "\"\"") + "\"");
-				continue;
-			}
-			
-			//if (curPath.trim().length()==0) continue;
-			
-			if (len>17){ 
-				if (line.contains("<JUNCTION>")){
-					skipJUNCTION ++;
-					continue;
-				}else if (line.contains("<SYMLINK>")){
-					skipSYMLINK ++;
-					continue;
-				}else if (line.contains("<DIR>")){
-					// 当前是目录中的目录，不处理
-					skipSubDir ++;
-					p_DirSubCount ++; 
-					try{ 
-						dir_dt_out = outputFormat.format(inputFormat.parse(line.substring(0,17)));
-						
-						int start = line.indexOf("<DIR>") + 5;
-						while (start<len && (line.charAt(start) ==' ')) start++;
-						file = line.substring(start);
-						
-						if (!".".equals(file) && !"..".equals(file))
-							pw_dir_dt.println(inFileNo + "," + curDirNo +",\"" + dir_dt_out+"\",\"" + file.replace("\"", "\"\"") + "\"");//字符串末尾不需要换行符
-							// src_id, parent_dir_id, dir_time, dir_name 
-					}catch (Exception e) {
-						e.printStackTrace();
-						errCount ++;
-						continue;
-					} 
-					continue;
-				}else if (line.startsWith("          ")){
-					skipSummary ++;
-					continue;
-				} else {
-					dt = line.substring(0,17);
-					try{ 
-						dt_out = outputFormat.format(inputFormat.parse(dt));
-					}catch (Exception e) {
-						e.printStackTrace();
-						errCount ++;
-						continue;
-					}
-					
-					// 找第一个数字
-					int i = 17;
-					while (i<len && !(line.charAt(i)>='0' && line.charAt(i)<='9')) i++;
-					int start=i;
-					// 找下一个空格
-					while (i<len && !(line.charAt(i) ==' ')) i++;
-					
-					try{
-						if (i>start){
-							size = line.substring(start, i);
-						}
-						file = line.substring(i+1); 
-						FileCount ++;
-						
-						p_DirFileCount ++;
-						p_dirSize += Long.valueOf(size.trim());
-					} catch (Exception e) {
-						e.printStackTrace();
-						errCount ++;
-						continue;
-					}
-					//System.out.println("  " + dt + " " + size + " " + file);
-					
-					ext = "";
-					start = file.lastIndexOf(".");
-					if (start>0){
-						ext = file.substring(start+1);
-					}
-					
-					pw.println(inFileNo + "," + curDirNo +",\"" + dt_out + "\"," + size 
-							+ ",\"" + file.replace("\"", "\"\"") + "\""
-							+ ",\"" + ext.replace("\"", "\"\"") + "\"");//字符串末尾不需要换行符
-					// src_id, dir_id, file_time,file_size, file_name, file_ext 
-				}
-				
-			}else{
-				skipEmpty ++;
-			}
-			if (rows % 2000 == 0){
-				pw.flush();
-				pw_dir.flush();
-				System.out.println("Dir:" + curDirNo + " , File:" + FileCount + ",  Read-Rows:" + rows 
-						+" (err="+errCount+",empty="+skipEmpty +",summary="+skipSummary+",subdir="+ skipSubDir 
-						+ ",symlink="+skipSYMLINK +",junction="+ skipJUNCTION+ ") ... ");
-			} 
-		}
-		br.close();
-		if (p_curDirNo>0)  
-			pw_dir.println(inFileNo + "," + p_curDirNo+ "," + p_DirFileCount +"," + p_dirSize + "," + p_DirSubCount + ",\"" + curPath.replace("\"", "\"\"") + "\"");
-    		// src_id, dir_id, dir_file_count, dir_file_size, dir_sub_count, dir_name 
-
-		System.out.println("Dir:" + curDirNo + " , File:" + FileCount + ",  Read-Rows:" + rows 
-				+" (err="+errCount+",empty="+skipEmpty +",summary="+skipSummary+",subdir="+ skipSubDir 
-				+ ",symlink="+skipSYMLINK +",junction="+ skipJUNCTION+ ") ... end");
-		pw.flush();
-		pw.close();
-		fw.close();
-		pw_dir.flush();
-		pw_dir.close();
-		fw_dir.close();
-		pw_dir_dt.flush();
-		pw_dir_dt.close();
-		fw_dir_dt.close();
-		
-		
-	}
-
 }

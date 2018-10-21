@@ -1,6 +1,7 @@
 package testWin;
 
 import java.awt.BorderLayout;
+import java.awt.Checkbox;
 import java.awt.Component;
 import java.awt.EventQueue;
 import java.awt.FlowLayout;
@@ -22,9 +23,12 @@ import java.io.File;
 import java.io.PrintStream;
 import java.util.Date;
 import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
+import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JFileChooser;
@@ -73,6 +77,7 @@ public class TestMain /*extends ApplicationWindow*/ implements MouseListener,Key
 	private DirInfo dir0;
 	private JTabbedPane tabbedPane;
 	private JPanel pnl_output_logs;
+	private JPanel pnl_options;
 	private JPanel pnl_filesize_top;
 	private JTextArea textArea;
 	private JTextArea textArea_log;
@@ -84,6 +89,11 @@ public class TestMain /*extends ApplicationWindow*/ implements MouseListener,Key
 	private JSeparator sep_tree,sep_text;
 	private int curMousePos_x;
 	private int curMousePos_y;
+	private JTextField dt_format;
+	private JCheckBox customDateTimeFormat;
+	private Map options;
+	private JTextField dateParseErrorCountMax;
+	private JCheckBox skipSYMLINKD;
 	
 //	private static Shell myshell;
 	
@@ -313,6 +323,12 @@ public class TestMain /*extends ApplicationWindow*/ implements MouseListener,Key
 		}
 		
 	}
+	
+	
+	public void setOptions(String key,String value){
+		if (options == null) options = new HashMap<String, String>();
+		options.put(key, value);
+	}
 	public synchronized void fillTree(String path){
 		
 		clearTree();		
@@ -345,9 +361,14 @@ public class TestMain /*extends ApplicationWindow*/ implements MouseListener,Key
 			try{ 
 				ByteArrayOutputStream baos = new ByteArrayOutputStream();
 				PrintStream cacheStream = new PrintStream(baos);
-				System.setOut(cacheStream);
+				System.setOut(cacheStream); 
+				if (customDateTimeFormat.isSelected()){
+					setOptions("setDateTimeFormat",dt_format.getText().trim());
+				}
+				setOptions("setDateParseErrorCountMax",dateParseErrorCountMax.getText().trim()); 
+			    setOptions("setSkipSYMLINKD",skipSYMLINKD.isSelected()?"YES":"NO");
 				
-				map = GetDirInfo.getDirInfo(path,topsize);
+				map = GetDirInfo.getDirInfo(path,topsize,options);
 
 				output_log("\n"+baos.toString());
 				textArea_log.setCaretPosition(0);
@@ -584,6 +605,7 @@ public class TestMain /*extends ApplicationWindow*/ implements MouseListener,Key
 		panel.add(btnNewButton);
 		
 		textField = new JTextField();
+		textField.setToolTipText("需要目录或文件名，路径要存在（可带*.ext，此时只保证 文件大小 页输出），文件名表示为 dir 的输出(需要指定格式 dir /a /-c /t:w /s)");
 		textField.setText("D:\\java_run\\Quartz");
 		panel.add(textField);
 		//textField.setSize(1000, textField.getHeight());
@@ -662,15 +684,14 @@ public class TestMain /*extends ApplicationWindow*/ implements MouseListener,Key
 	    jspTree = new JScrollPane();
 	    jspTree.setViewportView(jtNetDevice);
 
-	    tabbedPane.addTab("Dir-Size-Tree", null, jspTree, null);
+	    tabbedPane.addTab("目录大小（树）", null, jspTree, "以目录树的形式列出分析的目录，双击或右键可以刷新子目录，会以最占用空间在最上");
 	    //frame.getContentPane().add(jspTree, BorderLayout.CENTER);
 
 		addPopup(jtNetDevice,popMenu);
 
 	    pnl_filesize_top = new JPanel();
-	    tabbedPane.addTab("File-Size-Top", null, pnl_filesize_top, null);
+	    tabbedPane.addTab("文件大小Top（列表）", null, pnl_filesize_top, "指按设置的达到或超过'获取文件Top'限制，从大至小排列，每次分析清除上次结果");
 	    pnl_filesize_top.setLayout(new BorderLayout(0, 0));
-	    
 	    
 	    textArea = new JTextArea();
 	    textArea.setText("");
@@ -682,7 +703,7 @@ public class TestMain /*extends ApplicationWindow*/ implements MouseListener,Key
 	    
 
 	    pnl_output_logs = new JPanel();
-	    tabbedPane.addTab("Output-Logs", null, pnl_output_logs, null);
+	    tabbedPane.addTab("输出日志", null, pnl_output_logs, "输出消息日志信息，信息倒序排列（最新消息在最上）");
 	    pnl_output_logs.setLayout(new BorderLayout(0, 0));
 	    
 	    textArea_log = new JTextArea();
@@ -692,6 +713,38 @@ public class TestMain /*extends ApplicationWindow*/ implements MouseListener,Key
 	    JScrollPane jsp_2 = new JScrollPane();
 	    jsp_2.setViewportView(textArea_log);
 	    pnl_output_logs.add(jsp_2);
+	    
+	    
+	    // 设置 - 选项
+	    pnl_options = new JPanel();
+	    tabbedPane.addTab("设置", null, pnl_options, "设置-选项");
+	    //pnl_options.setLayout(new BorderLayout(0, 0));
+		//panel.setLayout(new FlowLayout(FlowLayout.LEFT, 5, 5));
+	    pnl_options.setLayout(new FlowLayout(FlowLayout.LEFT));
+	    //pnl_options.setBounds(41, 34, 313, 194);      
+	    //pnl_options.setBorder(BorderFactory.createTitledBorder("日期时间格式:"));
+	    
+	    customDateTimeFormat = new JCheckBox("是否指定Dir命令中日期时间格式（解释不正确时需要指定 或 到系统中设置为标准格式 yyyy-MM-dd HH:mm）");
+	    customDateTimeFormat.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {				
+				dt_format.setEditable(customDateTimeFormat.isSelected());
+			}
+		});
+	    pnl_options.add(customDateTimeFormat); 
+	    dt_format = new JTextField();
+	    dt_format.setColumns(30);
+	    dt_format.setText(GetDirInfo.getSystemDateTimeFormat());
+	    dt_format.setEditable(false);
+	    pnl_options.add(dt_format);
+	    
+	    pnl_options.add(new JLabel("  设置日期格式化出错最大值："));
+	    dateParseErrorCountMax = new JTextField("3000");
+	    dateParseErrorCountMax.setColumns(10);
+	    pnl_options.add(dateParseErrorCountMax);
+	    
+	    skipSYMLINKD = new JCheckBox("跳过链接目录 ，即 SYMLINKD/JUNCTION ");
+	    skipSYMLINKD.setSelected(true);
+	    pnl_options.add(skipSYMLINKD);
 	    
 	    JPanel panel1 = new JPanel();
 //	    panel1.setSize(panel1.getWidth(), 100);
@@ -829,11 +882,11 @@ public class TestMain /*extends ApplicationWindow*/ implements MouseListener,Key
 //		textArea_log.append(msg+"\n");
 	}
 	
-	public void showMessage(String mess){ 
-		JOptionPane.showMessageDialog(this.frame,
+	public static void showMessage(String mess){ 
+		JOptionPane.showMessageDialog(null,
 				mess, "系统信息", JOptionPane.INFORMATION_MESSAGE);
 	}
-	public boolean isSelectYes(String info){
+	public static boolean isSelectYes(String info){
 		int option = JOptionPane.showConfirmDialog(null,
 				info, "info", JOptionPane.YES_NO_OPTION,
 				JOptionPane.WARNING_MESSAGE, null);
